@@ -28,8 +28,9 @@
     }
   ],
   "observability": {
-    "logs": {
-      "binding": "LOGS"
-    }
+  "enabled": true,
+  "logs": {
+    "enabled": true
   }
+}
 }
