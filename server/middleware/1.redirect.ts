@@ -1,7 +1,7 @@
 import type { LinkSchema } from '@@/schemas/link'
 import type { z } from 'zod'
 import { parsePath, parseURL, withQuery } from 'ufo'
-import CryptoJS from 'crypto-js'
+import { createHash } from 'crypto'
 
 /**
  * 获取允许修改的域名列表
@@ -62,8 +62,8 @@ async function replaceSubdomainWithDate(url: string, allowedDomains: string[]): 
     const dayStr = day.length === 1 ? `0${day}` : day
     const dateStr = `${year}${monthStr}${dayStr}`
     
-    // 对当前日期进行MD5加密
-    const md5Hash = CryptoJS.MD5(dateStr).toString(CryptoJS.enc.Hex)
+    // 对当前日期进行MD5加密（使用Node.js crypto模块）
+    const md5Hash = createHash('md5').update(dateStr).digest('hex')
     // 取MD5的后8位作为二级域名
     const subdomain = md5Hash.slice(-8)
     
