@@ -12,7 +12,20 @@ defineRouteMeta({
   },
 })
 
-export default eventHandler(() => {
+export default eventHandler((event) => {
+  // 获取请求中的 token
+  const token = getHeader(event, 'Authorization')?.replace(/^Bearer\s+/, '')
+  const siteToken = useRuntimeConfig(event).siteToken
+
+  // 验证 token
+  if (!token || token !== siteToken) {
+    throw createError({
+      status: 401,
+      statusText: 'Unauthorized',
+    })
+  }
+
+  // Token 验证成功
   return {
     name: 'Sink',
     url: 'https://sink.cool',
