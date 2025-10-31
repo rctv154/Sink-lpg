@@ -21,6 +21,9 @@ const route = useRoute()
         <TabsTrigger value="/dashboard/realtime">
           {{ $t('nav.realtime') }}
         </TabsTrigger>
+        <TabsTrigger value="/dashboard/config">
+          域名配置
+        </TabsTrigger>
       </TabsList>
     </Tabs>
     <slot name="left" />

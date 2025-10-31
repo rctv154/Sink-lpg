@@ -49,7 +49,8 @@
     "virtua": "^0.41.2",
     "vue-sonner": "^2.0.0",
     "vue3-simple-icons": "^13.2.0",
-    "zod": "^3.25.20"
+    "zod": "^3.25.20",
+    "crypto-js": "^4.2.0"
   },
   "devDependencies": {
     "@anatine/zod-mock": "^3.14.0",
