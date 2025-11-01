@@ -11,6 +11,16 @@ const summary = ref({
 const isLoading = ref(false)
 const isLoadingStats = ref(false)
 
+// 分页相关
+const currentPage = ref(1)
+const pageSize = ref(50)
+const pagination = ref({
+  page: 1,
+  pageSize: 50,
+  total: 0,
+  totalPages: 0,
+})
+
 const { host, origin } = location
 
 function formatNumber(num) {
@@ -34,8 +44,14 @@ async function loadLinksWithStats() {
   isLoading.value = true
   isLoadingStats.value = true
   try {
-    const data = await useAPI('/api/link/stats')
+    const data = await useAPI('/api/link/stats', {
+      query: {
+        page: currentPage.value,
+        pageSize: pageSize.value,
+      },
+    })
     summary.value = data.summary || summary.value
+    pagination.value = data.pagination || pagination.value
     links.value = (data.links || []).map((link) => {
       return {
         ...link,
@@ -52,6 +68,11 @@ async function loadLinksWithStats() {
     isLoading.value = false
     isLoadingStats.value = false
   }
+}
+
+function handlePageChange(page) {
+  currentPage.value = page
+  loadLinksWithStats()
 }
 
 function getShortLink(slug) {
@@ -304,5 +325,33 @@ onMounted(() => {
         </div>
       </CardContent>
     </Card>
+
+    <!-- 分页 -->
+    <div v-if="!isLoading && pagination.totalPages > 1" class="flex items-center justify-center gap-2 mt-4">
+      <Button
+        variant="outline"
+        size="sm"
+        :disabled="currentPage === 1"
+        @click="handlePageChange(currentPage - 1)"
+      >
+        上一页
+      </Button>
+      <div class="flex items-center gap-2">
+        <span class="text-sm text-muted-foreground">
+          第 {{ currentPage }} / {{ pagination.totalPages }} 页
+        </span>
+        <span class="text-sm text-muted-foreground">
+          (共 {{ pagination.total }} 条)
+        </span>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        :disabled="currentPage === pagination.totalPages"
+        @click="handlePageChange(currentPage + 1)"
+      >
+        下一页
+      </Button>
+    </div>
   </main>
 </template>

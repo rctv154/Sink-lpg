@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { z } from 'zod'
 import { SqlBricks } from '../../utils/sql-bricks'
 import { logsMap } from '../../utils/access-log'
 import { useWAE } from '../../utils/cloudflare'
@@ -8,6 +9,12 @@ const { select, and, gte, lt } = SqlBricks
 export default eventHandler(async (event) => {
   const { cloudflare } = event.context
   const { KV } = cloudflare.env
+
+  // 支持分页
+  const { page = 1, pageSize = 50 } = await getValidatedQuery(event, z.object({
+    page: z.coerce.number().min(1).optional(),
+    pageSize: z.coerce.number().min(1).max(100).optional(),
+  }).parse)
 
   // 计算今日和昨日的时间范围
   const now = new Date()
@@ -57,10 +64,16 @@ export default eventHandler(async (event) => {
     .groupBy('index1')
 
   // 并行查询今日和昨日数据
+  console.log('Today SQL:', todaySql.toString())
+  console.log('Yesterday SQL:', yesterdaySql.toString())
+  
   const [todayData, yesterdayData] = await Promise.all([
     useWAE(event, todaySql.toString()),
     useWAE(event, yesterdaySql.toString()),
   ])
+
+  console.log('Today Data Sample:', todayData?.data?.[0] || todayData?.[0])
+  console.log('Yesterday Data Sample:', yesterdayData?.data?.[0] || yesterdayData?.[0])
 
   // 解析统计数据
   const todayResults = Array.isArray(todayData) ? todayData : (todayData?.data || [])
@@ -74,9 +87,9 @@ export default eventHandler(async (event) => {
     todayResults.forEach((item: any) => {
       if (item && item.id) {
         todayStatsMap.set(item.id, {
-          pv: item.pv || 0,
-          uv: item.uv || 0,
-          ip: item.ip || 0,
+          pv: Number(item.pv) || 0,
+          uv: Number(item.uv) || 0,
+          ip: Number(item.ip) || 0,
         })
       }
     })
@@ -86,9 +99,9 @@ export default eventHandler(async (event) => {
     yesterdayResults.forEach((item: any) => {
       if (item && item.id) {
         yesterdayStatsMap.set(item.id, {
-          pv: item.pv || 0,
-          uv: item.uv || 0,
-          ip: item.ip || 0,
+          pv: Number(item.pv) || 0,
+          uv: Number(item.uv) || 0,
+          ip: Number(item.ip) || 0,
         })
       }
     })
@@ -99,28 +112,35 @@ export default eventHandler(async (event) => {
   todayStatsMap.forEach((_, id) => linkIdsWithStats.add(id))
   yesterdayStatsMap.forEach((_, id) => linkIdsWithStats.add(id))
 
-  // 获取所有链接（使用分页，限制数量以提高性能）
+  // 获取所有链接（支持分页）
   const links = []
   let cursor = null
-  const limit = 100 // 限制每次获取的链接数量
+  const limit = 500 // 获取所有链接用于统计
   
-  // 如果有很多链接，可能需要分页获取，但这里先获取前100个
-  const listResult = await KV.list({ prefix: 'link:', limit, cursor })
-  
-  // 并行获取链接数据
-  const linkPromises = listResult.keys.map(async (key: { name: string }) => {
-    const { metadata, value: link } = await KV.getWithMetadata(key.name, { type: 'json' })
-    if (link) {
-      return {
-        ...metadata,
-        ...link,
+  // 遍历所有链接
+  while (true) {
+    const listResult = await KV.list({ prefix: 'link:', limit, cursor })
+    
+    // 并行获取链接数据
+    const linkPromises = listResult.keys.map(async (key: { name: string }) => {
+      const { metadata, value: link } = await KV.getWithMetadata(key.name, { type: 'json' })
+      if (link) {
+        return {
+          ...metadata,
+          ...link,
+        }
       }
+      return link
+    })
+    
+    const allLinks = await Promise.all(linkPromises)
+    links.push(...allLinks.filter(Boolean))
+    
+    cursor = listResult.cursor
+    if (!cursor || listResult.keys.length < limit) {
+      break
     }
-    return link
-  })
-  
-  const allLinks = await Promise.all(linkPromises)
-  links.push(...allLinks.filter(Boolean))
+  }
 
   // 创建链接ID到链接的映射
   const linkByIdMap = new Map(links.map(link => [link.id, link]))
@@ -152,22 +172,79 @@ export default eventHandler(async (event) => {
     }
   })
 
-  // 计算汇总数据
+  // 计算汇总数据 - 需要从原始数据重新查询以获取全局去重的UV和IP
+  // PV可以直接相加，但UV和IP需要全局去重
+  const summarySql = select(
+    `SUM(_sample_interval) as pv, 
+     COUNT(DISTINCT ${logsMap.ip}) as uv, 
+     COUNT(DISTINCT ${logsMap.ip}) as ip`
+  )
+    .from(dataset)
+    .where(
+      and(
+        gte('timestamp', SqlBricks(`toDateTime(${todayStart})`)),
+        lt('timestamp', SqlBricks(`toDateTime(${todayEnd})`))
+      )
+    )
+
+  const yesterdaySummarySql = select(
+    `SUM(_sample_interval) as pv, 
+     COUNT(DISTINCT ${logsMap.ip}) as uv, 
+     COUNT(DISTINCT ${logsMap.ip}) as ip`
+  )
+    .from(dataset)
+    .where(
+      and(
+        gte('timestamp', SqlBricks(`toDateTime(${yesterdayStart})`)),
+        lt('timestamp', SqlBricks(`toDateTime(${yesterdayEnd})`))
+      )
+    )
+
+  console.log('Summary SQL Today:', summarySql.toString())
+  console.log('Summary SQL Yesterday:', yesterdaySummarySql.toString())
+  
+  const [todaySummary, yesterdaySummary] = await Promise.all([
+    useWAE(event, summarySql.toString()),
+    useWAE(event, yesterdaySummarySql.toString()),
+  ])
+
+  console.log('Today Summary Raw:', todaySummary)
+  console.log('Yesterday Summary Raw:', yesterdaySummary)
+
+  const todaySummaryResult = Array.isArray(todaySummary) ? todaySummary[0] : (todaySummary?.data?.[0] || {})
+  const yesterdaySummaryResult = Array.isArray(yesterdaySummary) ? yesterdaySummary[0] : (yesterdaySummary?.data?.[0] || {})
+  
+  console.log('Today Summary Result:', todaySummaryResult)
+  console.log('Yesterday Summary Result:', yesterdaySummaryResult)
+
   const summary = {
     today: {
-      pv: linkStats.reduce((sum, stat) => sum + (stat.today?.pv || 0), 0),
-      uv: linkStats.reduce((sum, stat) => sum + (stat.today?.uv || 0), 0),
-      ip: linkStats.reduce((sum, stat) => sum + (stat.today?.ip || 0), 0),
+      pv: Number(todaySummaryResult?.pv) || 0,
+      uv: Number(todaySummaryResult?.uv) || 0,
+      ip: Number(todaySummaryResult?.ip) || 0,
     },
     yesterday: {
-      pv: linkStats.reduce((sum, stat) => sum + (stat.yesterday?.pv || 0), 0),
-      uv: linkStats.reduce((sum, stat) => sum + (stat.yesterday?.uv || 0), 0),
-      ip: linkStats.reduce((sum, stat) => sum + (stat.yesterday?.ip || 0), 0),
+      pv: Number(yesterdaySummaryResult?.pv) || 0,
+      uv: Number(yesterdaySummaryResult?.uv) || 0,
+      ip: Number(yesterdaySummaryResult?.ip) || 0,
     },
   }
 
+  // 实现分页
+  const totalLinks = linkStats.length
+  const totalPages = Math.ceil(totalLinks / pageSize)
+  const startIndex = (page - 1) * pageSize
+  const endIndex = startIndex + pageSize
+  const paginatedLinks = linkStats.slice(startIndex, endIndex)
+
   return {
     summary,
-    links: linkStats,
+    links: paginatedLinks,
+    pagination: {
+      page,
+      pageSize,
+      total: totalLinks,
+      totalPages,
+    },
   }
 })
