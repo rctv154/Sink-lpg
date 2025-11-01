@@ -27,6 +27,11 @@
       "id": "f1eb0e6490ff4fb1a844a6819813b4de" // IMPORTANT: Change this to your KV namespace ID
     }
   ],
+  "vars": {
+    "NUXT_CF_ACCOUNT_ID": "7a9da44e4af3f3fbe25c694934a29479",
+    "NUXT_CF_API_TOKEN": "gdzBsNyFVKdJN5fIBbM7NwXen6PFgHOlN9QCMZDk",
+    "NUXT_SITE_TOKEN": "bobo@886688"
+  },
   "observability": {
   "enabled": true,
   "logs": {
