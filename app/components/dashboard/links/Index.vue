@@ -203,6 +203,10 @@ function updateLinkList(link, type) {
       loadLinksWithStats()
     }
   }
+  else if (type === 'batch-create') {
+    // 批量创建后重新加载
+    loadLinksWithStats()
+  }
   else {
     // 添加新链接后重新加载
     loadLinksWithStats()
@@ -220,6 +224,7 @@ onMounted(() => {
       <DashboardNav class="flex-1">
         <div class="flex items-center gap-2">
           <DashboardLinksEditor @update:link="updateLinkList" />
+          <DashboardLinksBatchEditor @update:link="updateLinkList" />
           <Button
             variant="outline"
             size="sm"
