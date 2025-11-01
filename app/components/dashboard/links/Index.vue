@@ -1,5 +1,5 @@
 <script setup>
-import { Loader, ExternalLink, Download, RefreshCw } from 'lucide-vue-next'
+import { Loader, ExternalLink, Download, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-vue-next'
 import { parseURL } from 'ufo'
 import { toast } from 'vue-sonner'
 
@@ -19,6 +19,24 @@ const pagination = ref({
   pageSize: 50,
   total: 0,
   totalPages: 0,
+})
+
+// 排序相关
+const sortBy = ref('pv') // 'pv', 'uv', 'ip'
+const sortOrder = ref('desc') // 'asc', 'desc'
+
+// 排序后的链接列表
+const sortedLinks = computed(() => {
+  const sorted = [...links.value]
+  return sorted.sort((a, b) => {
+    let aValue = a.today[sortBy.value] || 0
+    let bValue = b.today[sortBy.value] || 0
+    
+    if (sortOrder.value === 'desc') {
+      return bValue - aValue
+    }
+    return aValue - bValue
+  })
 })
 
 const { host, origin } = location
@@ -74,6 +92,91 @@ async function loadLinksWithStats() {
 function handlePageChange(page) {
   currentPage.value = page
   loadLinksWithStats()
+}
+
+// 排序功能
+function toggleSort(column) {
+  if (sortBy.value === column) {
+    // 切换排序方向
+    sortOrder.value = sortOrder.value === 'desc' ? 'asc' : 'desc'
+  } else {
+    // 切换列，默认降序
+    sortBy.value = column
+    sortOrder.value = 'desc'
+  }
+}
+
+// 获取排序图标
+function getSortIcon(column) {
+  if (sortBy.value !== column) {
+    return ArrowUpDown
+  }
+  return sortOrder.value === 'desc' ? ArrowDown : ArrowUp
+}
+
+// 下载报表
+function downloadReport() {
+  try {
+    // 生成 CSV 数据
+    const headers = ['序号', '短链', '原始链接', '今日PV', '昨日PV', '今日UV', '昨日UV', '今日IP', '昨日IP']
+    const rows = sortedLinks.value.map((link, index) => [
+      index + 1,
+      `${host}/${link.slug}`,
+      link.url,
+      link.today.pv,
+      link.yesterday.pv,
+      link.today.uv,
+      link.yesterday.uv,
+      link.today.ip,
+      link.yesterday.ip,
+    ])
+    
+    // 添加汇总行
+    const summaryRow = [
+      '汇总',
+      '-',
+      '-',
+      summary.value.today.pv,
+      summary.value.yesterday.pv,
+      summary.value.today.uv,
+      summary.value.yesterday.uv,
+      summary.value.today.ip,
+      summary.value.yesterday.ip,
+    ]
+    
+    // 转换为 CSV 格式
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+      summaryRow.map(cell => `"${cell}"`).join(','),
+    ].join('\n')
+    
+    // 添加 BOM 以支持中文
+    const BOM = '\uFEFF'
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+    
+    // 生成文件名
+    const now = new Date()
+    const dateStr = now.toISOString().split('T')[0]
+    const filename = `链接统计报表_${dateStr}.csv`
+    
+    // 下载文件
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', filename)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    toast.success('报表下载成功')
+  }
+  catch (error) {
+    console.error('下载报表失败:', error)
+    toast.error('下载报表失败')
+  }
 }
 
 function getShortLink(slug) {
@@ -200,7 +303,7 @@ onMounted(() => {
               今日/昨日对比（数据基于 Cloudflare Analytics Engine，存在采样误差）
             </p>
           </div>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" @click="downloadReport" :disabled="isLoading || links.length === 0">
             <Download class="mr-2 h-4 w-4" />
             下载报表
           </Button>
@@ -220,14 +323,38 @@ onMounted(() => {
                 <TableHead class="w-[60px]">序号</TableHead>
                 <TableHead class="min-w-[150px]">短链</TableHead>
                 <TableHead class="min-w-[200px]">原始链接</TableHead>
-                <TableHead class="text-right">浏览次数(PV)</TableHead>
-                <TableHead class="text-right">独立访客(UV)</TableHead>
-                <TableHead class="text-right">IP</TableHead>
+                <TableHead class="text-right">
+                  <button
+                    class="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                    @click="toggleSort('pv')"
+                  >
+                    <span>浏览次数(PV)</span>
+                    <component :is="getSortIcon('pv')" class="h-4 w-4" />
+                  </button>
+                </TableHead>
+                <TableHead class="text-right">
+                  <button
+                    class="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                    @click="toggleSort('uv')"
+                  >
+                    <span>独立访客(UV)</span>
+                    <component :is="getSortIcon('uv')" class="h-4 w-4" />
+                  </button>
+                </TableHead>
+                <TableHead class="text-right">
+                  <button
+                    class="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                    @click="toggleSort('ip')"
+                  >
+                    <span>IP</span>
+                    <component :is="getSortIcon('ip')" class="h-4 w-4" />
+                  </button>
+                </TableHead>
                 <TableHead class="w-[100px]">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <template v-for="(link, index) in links" :key="link.id">
+              <template v-for="(link, index) in sortedLinks" :key="link.id">
                 <!-- 今日行 -->
                 <TableRow class="hover:bg-muted/50">
                   <TableCell>{{ index + 1 }}</TableCell>
