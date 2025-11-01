@@ -29,7 +29,7 @@
   ],
   "vars": {
     "NUXT_CF_ACCOUNT_ID": "7a9da44e4af3f3fbe25c694934a29479",
-    "NUXT_CF_API_TOKEN": "gdzBsNyFVKdJN5fIBbM7NwXen6PFgHOlN9QCMZDk",
+    "NUXT_CF_API_TOKEN": "gdzBsNyFVKdJN5fiB8M7NwXen6PFgHOIN9QCMZDk",
     "NUXT_SITE_TOKEN": "bobo@886688"
   },
   "observability": {
