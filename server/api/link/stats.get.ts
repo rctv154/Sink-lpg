@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
-import { SqlBricks } from '../../../utils/sql-bricks'
-import { logsMap } from '../../../utils/access-log'
-import { useWAE } from '../../../utils/cloudflare'
+import { SqlBricks } from '../../utils/sql-bricks'
+import { logsMap } from '../../utils/access-log'
+import { useWAE } from '../../utils/cloudflare'
 
 const { select, and, eq, gte, lt } = SqlBricks
 
