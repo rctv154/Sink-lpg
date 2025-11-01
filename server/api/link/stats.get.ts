@@ -64,16 +64,10 @@ export default eventHandler(async (event) => {
     .groupBy('index1')
 
   // 并行查询今日和昨日数据
-  console.log('Today SQL:', todaySql.toString())
-  console.log('Yesterday SQL:', yesterdaySql.toString())
-  
   const [todayData, yesterdayData] = await Promise.all([
     useWAE(event, todaySql.toString()),
     useWAE(event, yesterdaySql.toString()),
   ])
-
-  console.log('Today Data Sample:', todayData?.data?.[0] || todayData?.[0])
-  console.log('Yesterday Data Sample:', yesterdayData?.data?.[0] || yesterdayData?.[0])
 
   // 解析统计数据
   const todayResults = Array.isArray(todayData) ? todayData : (todayData?.data || [])
@@ -200,22 +194,13 @@ export default eventHandler(async (event) => {
       )
     )
 
-  console.log('Summary SQL Today:', summarySql.toString())
-  console.log('Summary SQL Yesterday:', yesterdaySummarySql.toString())
-  
   const [todaySummary, yesterdaySummary] = await Promise.all([
     useWAE(event, summarySql.toString()),
     useWAE(event, yesterdaySummarySql.toString()),
   ])
 
-  console.log('Today Summary Raw:', todaySummary)
-  console.log('Yesterday Summary Raw:', yesterdaySummary)
-
   const todaySummaryResult = Array.isArray(todaySummary) ? todaySummary[0] : (todaySummary?.data?.[0] || {})
   const yesterdaySummaryResult = Array.isArray(yesterdaySummary) ? yesterdaySummary[0] : (yesterdaySummary?.data?.[0] || {})
-  
-  console.log('Today Summary Result:', todaySummaryResult)
-  console.log('Yesterday Summary Result:', yesterdaySummaryResult)
 
   const summary = {
     today: {

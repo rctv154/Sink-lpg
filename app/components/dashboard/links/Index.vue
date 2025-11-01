@@ -140,7 +140,12 @@ onMounted(() => {
     <!-- 汇总部分 -->
     <Card>
       <CardHeader>
-        <CardTitle>汇总</CardTitle>
+        <div class="flex items-center justify-between">
+          <CardTitle>汇总</CardTitle>
+          <div class="text-xs text-muted-foreground">
+            基于服务器时区的今日/昨日统计
+          </div>
+        </div>
       </CardHeader>
       <CardContent class="p-0">
         <div class="overflow-x-auto">
@@ -188,7 +193,12 @@ onMounted(() => {
     <Card>
       <CardHeader>
         <div class="flex items-center justify-between">
-          <CardTitle>链接数据</CardTitle>
+          <div>
+            <CardTitle>链接数据</CardTitle>
+            <p class="text-xs text-muted-foreground mt-1">
+              今日/昨日对比（数据基于 Cloudflare Analytics Engine，存在采样误差）
+            </p>
+          </div>
           <Button variant="outline" size="sm">
             <Download class="mr-2 h-4 w-4" />
             下载报表
