@@ -48,6 +48,7 @@ async function loadLinksWithStats() {
       query: {
         page: currentPage.value,
         pageSize: pageSize.value,
+        clientTimezone: getTimeZone(), // 传递客户端时区
       },
     })
     summary.value = data.summary || summary.value
@@ -143,7 +144,7 @@ onMounted(() => {
         <div class="flex items-center justify-between">
           <CardTitle>汇总</CardTitle>
           <div class="text-xs text-muted-foreground">
-            基于服务器时区的今日/昨日统计
+            基于本地时区（{{ getTimeZone() }}）的今日/昨日统计
           </div>
         </div>
       </CardHeader>

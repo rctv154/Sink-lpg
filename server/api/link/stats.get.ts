@@ -10,24 +10,44 @@ export default eventHandler(async (event) => {
   const { cloudflare } = event.context
   const { KV } = cloudflare.env
 
-  // 支持分页
-  const { page = 1, pageSize = 50 } = await getValidatedQuery(event, z.object({
+  // 支持分页和客户端时区
+  const { page = 1, pageSize = 50, clientTimezone = 'Etc/UTC' } = await getValidatedQuery(event, z.object({
     page: z.coerce.number().min(1).optional(),
     pageSize: z.coerce.number().min(1).max(100).optional(),
+    clientTimezone: z.string().optional(),
   }).parse)
 
-  // 计算今日和昨日的时间范围
+  // 计算今日和昨日的时间范围（使用客户端时区）
+  // 使用 Intl API 正确处理时区
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: clientTimezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  
   const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-
-  const todayStart = Math.floor(today.getTime() / 1000)
-  const todayEnd = Math.floor(tomorrow.getTime() / 1000) - 1
-  const yesterdayStart = Math.floor(yesterday.getTime() / 1000)
-  const yesterdayEnd = Math.floor(today.getTime() / 1000) - 1
+  const parts = formatter.formatToParts(now)
+  const year = parseInt(parts.find(p => p.type === 'year')!.value)
+  const month = parseInt(parts.find(p => p.type === 'month')!.value) - 1
+  const day = parseInt(parts.find(p => p.type === 'day')!.value)
+  
+  // 创建客户端时区的日期对象
+  // 使用 Date.UTC 然后减去时区偏移
+  const getTimezoneOffsetMinutes = (tz: string, date: Date) => {
+    const tzString = date.toLocaleString('en-US', { timeZone: tz })
+    const tzDate = new Date(tzString)
+    const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }))
+    return (tzDate.getTime() - utcDate.getTime()) / 60000
+  }
+  
+  // 客户端时区今日 00:00 的 UTC 时间戳
+  const clientTodayLocal = new Date(year, month, day, 0, 0, 0)
+  const offsetMinutes = getTimezoneOffsetMinutes(clientTimezone, clientTodayLocal)
+  const todayStart = Math.floor((clientTodayLocal.getTime() - offsetMinutes * 60000) / 1000)
+  const todayEnd = todayStart + 86400 - 1  // +24小时 - 1秒
+  const yesterdayStart = todayStart - 86400  // -24小时
+  const yesterdayEnd = todayStart - 1
 
   const { dataset } = useRuntimeConfig(event)
 
